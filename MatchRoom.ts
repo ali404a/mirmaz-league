@@ -3,8 +3,26 @@ import { MatchState, PlayerState, SlotState, CardState } from './schema.js';
 import { Rng, rollTier, goalsFromDiff } from './rng.js';
 import { supabase, TeacherCard, loadCardPool } from './db.js';
 
-const DRAFT_SECONDS = 60;
-const BOX_COUNT = 4;
+/**
+ * DRAFT MECHANIC
+ *
+ * Every SLOT gets its own set of 4 boxes — not 4 boxes for the whole squad.
+ * A 3-slot pitch deals 12 boxes per player; an 11-slot pitch deals 44.
+ *
+ * Within a slot the player opens boxes one at a time and may reject boxes
+ * 1-3. The 4th box is FORCED: there is no reject button, so a slot can
+ * never be left empty and "reject is final" stays meaningful.
+ *
+ * Each slot carries its own 60s timer, refreshed when a slot resolves.
+ *
+ * Cards are drawn from the whole pool regardless of position — a GK box can
+ * contain a striker. The position on the card is cosmetic for now.
+ */
+
+const SECONDS_PER_SLOT = 60;
+const BOXES_PER_SLOT = 4;
+const FORCED_BOX = BOXES_PER_SLOT - 1;   // index 3 — cannot be rejected
+
 const FORMATIONS: Record<number, string[]> = {
   3:  ['GK', 'CB', 'ST'],
   5:  ['GK', 'CB', 'CM', 'LW', 'ST'],
@@ -12,17 +30,17 @@ const FORMATIONS: Record<number, string[]> = {
   11: ['GK', 'CB', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'],
 };
 
-type BoxSlot = { card: TeacherCard; opened: boolean };
+/** Private per-player draft state. Never synced — clients must not see it. */
+type SlotBoxes = {
+  cards: TeacherCard[];        // the 4 cards behind this slot's boxes
+  opened: boolean[];           // which have been revealed
+  revealed: number | null;     // box index awaiting a keep/reject decision
+  resolved: boolean;           // slot has a card locked in
+};
 
-/**
- * Colyseus 0.17 takes an options *shape* as the generic, not the state class
- * directly (0.15 used `Room<MatchState>`). The state is declared as a field
- * rather than passed to setState().
- */
 export class MatchRoom extends Room<{ state: MatchState }> {
   maxClients = 2;
 
-  /** 0.17 requires the state instance up-front rather than via setState(). */
   state = new MatchState();
 
   private rng!: Rng;
@@ -31,14 +49,12 @@ export class MatchRoom extends Room<{ state: MatchState }> {
   private pool: TeacherCard[] = [];
   private ticker?: ReturnType<typeof setInterval>;
 
-  /**
-   * PRIVATE. Box contents live here, never in MatchState.
-   * A client learns a box's contents only in the openBox response,
-   * and only for their own boxes.
-   */
-  private boxes = new Map<string, BoxSlot[]>();
+  /** sessionId -> per-slot box sets. Private: contents leak only on open. */
+  private draft = new Map<string, SlotBoxes[]>();
 
-  /** Full event log — written to matches.replay on finish. */
+  /** sessionId -> index of the slot they are currently drafting */
+  private cursor = new Map<string, number>();
+
   private events: any[] = [];
 
   async onCreate(options: { formation?: number }) {
@@ -49,7 +65,8 @@ export class MatchRoom extends Room<{ state: MatchState }> {
     this.pool = await loadCardPool();
 
     this.state.formation = formation;
-    this.state.timeLeft = DRAFT_SECONDS;
+    this.state.boxesPerSlot = BOXES_PER_SLOT;
+    this.state.timeLeft = SECONDS_PER_SLOT;
 
     const { data, error } = await supabase
       .from('matches')
@@ -59,13 +76,12 @@ export class MatchRoom extends Room<{ state: MatchState }> {
     if (error) throw error;
     this.matchId = data.id;
 
-    this.onMessage('openBox', (client, msg: { index: number }) => this.handleOpenBox(client, msg));
-    this.onMessage('decide', (client, msg: { keep: boolean }) => this.handleDecide(client, msg));
+    this.onMessage('openBox', (c: Client, m: { box: number }) => this.handleOpenBox(c, m));
+    this.onMessage('decide',  (c: Client, m: { keep: boolean }) => this.handleDecide(c, m));
 
-    this.log('room_created', { formation, seed: this.seed });
+    this.log('room_created', { formation, boxesPerSlot: BOXES_PER_SLOT, seed: this.seed });
   }
 
-  /** Auth happens here — a client cannot claim to be someone else. */
   async onAuth(_client: Client, options: { token: string }) {
     const { data, error } = await supabase.auth.getUser(options.token);
     if (error || !data.user) throw new Error('unauthorized');
@@ -82,28 +98,38 @@ export class MatchRoom extends Room<{ state: MatchState }> {
   }
 
   onJoin(client: Client, _options: any, profile: any) {
+    const positions = FORMATIONS[this.state.formation];
+
     const p = new PlayerState();
     p.userId = profile.id;
     p.name = profile.full_name;
     p.platform = profile.platform;
     p.level = profile.level;
     p.power = profile.power;
+    p.currentSlot = 0;
 
-    for (const pos of FORMATIONS[this.state.formation]) {
+    for (const pos of positions) {
       const s = new SlotState();
       s.position = pos;
+      for (let i = 0; i < BOXES_PER_SLOT; i++) s.boxesOpened.push(false);
       p.slots.push(s);
     }
     this.state.players.set(client.sessionId, p);
 
-    // Deal this player's private boxes.
-    const dealt: BoxSlot[] = [];
-    for (let i = 0; i < BOX_COUNT; i++) {
-      dealt.push({ card: this.drawCard(), opened: false });
-    }
-    this.boxes.set(client.sessionId, dealt);
+    // Deal 4 private cards behind every slot's boxes.
+    const sets: SlotBoxes[] = positions.map(() => ({
+      cards: Array.from({ length: BOXES_PER_SLOT }, () => this.drawCard()),
+      opened: Array(BOXES_PER_SLOT).fill(false),
+      revealed: null,
+      resolved: false,
+    }));
+    this.draft.set(client.sessionId, sets);
+    this.cursor.set(client.sessionId, 0);
 
-    this.log('join', { userId: profile.id, sessionId: client.sessionId });
+    this.log('join', {
+      userId: profile.id,
+      totalBoxes: positions.length * BOXES_PER_SLOT,
+    });
 
     if (this.state.players.size === 2) this.startDraft();
   }
@@ -111,28 +137,25 @@ export class MatchRoom extends Room<{ state: MatchState }> {
   async onLeave(client: Client, code?: number) {
     const p = this.state.players.get(client.sessionId);
     if (!p) return;
-    // Colyseus 0.17 reports a close code instead of a boolean.
-    // 1000 = normal close, 4000+ = client called leave() deliberately.
+
     const consented = code === 1000 || (code ?? 0) >= 4000;
     p.connected = false;
     this.log('leave', { userId: p.userId, code, consented });
 
-    // A deliberate quit forfeits immediately — no reconnection grace.
+    if (this.state.phase === 'finished') return;
+
     if (consented && this.state.phase === 'drafting') {
-      this.autoFill(client.sessionId);
+      this.autoCompleteAll(client.sessionId);
       this.checkAllReady();
       return;
     }
 
-    if (this.state.phase === 'finished') return;
-
-    // Give a disconnected player 20s to come back before autocompleting.
     try {
       await this.allowReconnection(client, 20);
       p.connected = true;
       this.log('reconnect', { userId: p.userId });
     } catch {
-      this.autoFill(client.sessionId);
+      this.autoCompleteAll(client.sessionId);
       this.checkAllReady();
     }
   }
@@ -140,99 +163,189 @@ export class MatchRoom extends Room<{ state: MatchState }> {
   // ── DRAFT ────────────────────────────────────────────
   private startDraft() {
     this.state.phase = 'drafting';
-    this.state.timeLeft = DRAFT_SECONDS;
+    this.state.timeLeft = SECONDS_PER_SLOT;
     this.log('draft_start', {});
 
+    const ids = [...this.state.players.values()];
     supabase.from('matches').update({
       state: 'drafting',
       started_at: new Date().toISOString(),
-      p1: [...this.state.players.values()][0]?.userId,
-      p2: [...this.state.players.values()][1]?.userId,
+      p1: ids[0]?.userId,
+      p2: ids[1]?.userId,
     }).eq('id', this.matchId).then(() => {});
 
-    // Server owns the clock. A client that lags or tampers cannot extend it.
+    // Players advance through their own slots independently, so the shared
+    // clock tracks whoever is still drafting. When it expires, every player
+    // with an unresolved slot has it force-resolved, then it resets.
     this.ticker = setInterval(() => {
       this.state.timeLeft--;
       if (this.state.timeLeft <= 0) {
-        this.log('timeout', {});
-        for (const sid of this.state.players.keys()) this.autoFill(sid);
-        this.finish();
+        this.log('slot_timeout', {});
+        for (const sid of this.state.players.keys()) this.forceCurrentSlot(sid);
+        this.state.timeLeft = SECONDS_PER_SLOT;
+        this.checkAllReady();
       }
     }, 1000);
   }
 
-  private drawCard(floorTier?: string): TeacherCard {
-    const tier = rollTier(this.rng, floorTier);
+  private drawCard(): TeacherCard {
+    const tier = rollTier(this.rng);
     const candidates = this.pool.filter(c => c.tier === tier);
     return this.rng.pick(candidates);
   }
 
-  private handleOpenBox(client: Client, msg: { index: number }) {
+  private handleOpenBox(client: Client, msg: { box: number }) {
     if (this.state.phase !== 'drafting') return;
+
     const p = this.state.players.get(client.sessionId);
-    const boxes = this.boxes.get(client.sessionId);
-    if (!p || !boxes) return;
+    const sets = this.draft.get(client.sessionId);
+    const slotIdx = this.cursor.get(client.sessionId);
+    if (!p || !sets || slotIdx === undefined || slotIdx >= sets.length) return;
 
-    const i = msg?.index;
-    if (typeof i !== 'number' || i < 0 || i >= BOX_COUNT) return;
-    if (boxes[i].opened) return;                 // replay attempt
-    if (p.ready) return;                         // already done
-    if (this.pendingDecision.has(client.sessionId)) return;  // one at a time
+    const set = sets[slotIdx];
+    if (set.resolved) return;
+    if (set.revealed !== null) return;          // must decide on the open one first
 
-    boxes[i].opened = true;
-    p.boxesUsed[i] = true;
-    this.pendingDecision.set(client.sessionId, i);
+    const b = msg?.box;
+    if (typeof b !== 'number' || !Number.isInteger(b) || b < 0 || b >= BOXES_PER_SLOT) return;
+    if (set.opened[b]) return;                  // replay attempt
 
-    // Contents go ONLY to the owner.
-    client.send('boxOpened', { index: i, card: this.serialize(boxes[i].card) });
-    this.log('open_box', { userId: p.userId, index: i, cardId: boxes[i].card.id });
+    set.opened[b] = true;
+    set.revealed = b;
+    p.slots[slotIdx].boxesOpened[b] = true;
+
+    // Forced when it is the designated last box, or when every box is now
+    // open (the player rejected their way down to this one).
+    const forced = b === FORCED_BOX || set.opened.every(o => o);
+
+    // Contents go ONLY to the owner. The opponent sees which box index was
+    // opened via boxesOpened, but never the card behind it.
+    client.send('boxOpened', {
+      slot: slotIdx,
+      box: b,
+      card: this.serialize(set.cards[b]),
+      forced,                                    // client hides the reject button
+    });
+
+    this.log('open_box', {
+      userId: p.userId, slot: slotIdx, box: b,
+      cardId: set.cards[b].id, forced,
+    });
+
+    // The last box is compulsory — resolve immediately rather than waiting
+    // for a decide() that has no legal alternative.
+    if (forced) this.resolveSlot(client.sessionId, b, true);
   }
-
-  private pendingDecision = new Map<string, number>();
 
   private handleDecide(client: Client, msg: { keep: boolean }) {
     if (this.state.phase !== 'drafting') return;
-    const p = this.state.players.get(client.sessionId);
-    const boxes = this.boxes.get(client.sessionId);
-    const idx = this.pendingDecision.get(client.sessionId);
-    if (!p || !boxes || idx === undefined) return;
 
-    this.pendingDecision.delete(client.sessionId);
+    const sets = this.draft.get(client.sessionId);
+    const slotIdx = this.cursor.get(client.sessionId);
+    if (!sets || slotIdx === undefined || slotIdx >= sets.length) return;
+
+    const set = sets[slotIdx];
+    if (set.resolved || set.revealed === null) return;
+
+    const b = set.revealed;
+
+    // Guard: a forced box was already resolved on open. A decide() naming it
+    // is a stale client, or someone probing for a reject path.
+    if (b === FORCED_BOX) return;
 
     if (msg?.keep) {
-      const free = p.slots.findIndex((s: SlotState) => !s.card);
-      if (free >= 0) {
-        p.slots[free].card = this.toCardState(boxes[idx].card);
-        this.log('keep', { userId: p.userId, cardId: boxes[idx].card.id, slot: free });
-      }
-    } else {
-      this.log('discard', { userId: p.userId, cardId: boxes[idx].card.id });
+      this.resolveSlot(client.sessionId, b, false);
+      return;
     }
 
-    const filled = p.slots.filter((s: SlotState) => s.card).length;
-    const boxesLeft = boxes.filter(b => !b.opened).length;
+    set.revealed = null;
+    const p = this.state.players.get(client.sessionId)!;
+    this.log('reject', { userId: p.userId, slot: slotIdx, cardId: set.cards[b].id });
 
-    // Ran out of boxes before filling the lineup — deal replacements so a
-    // player is never left with an incomplete squad through no fault of theirs.
-    if (filled < this.state.formation && boxesLeft === 0) {
-      this.autoFill(client.sessionId);
+    // Rejecting down to a single remaining box leaves nothing to decide —
+    // open it for them rather than making them click a foregone conclusion.
+    const remaining = set.opened.filter(o => !o).length;
+    if (remaining === 1) {
+      const last = set.opened.findIndex(o => !o);
+      this.handleOpenBox(client, { box: last });
     }
-
-    if (p.slots.every((s: SlotState) => s.card)) {
-      p.ready = true;
-      this.log('ready', { userId: p.userId });
-    }
-    this.checkAllReady();
   }
 
-  private autoFill(sessionId: string) {
+  /** Lock a card into the current slot and advance the cursor. */
+  private resolveSlot(sessionId: string, box: number, forced: boolean) {
     const p = this.state.players.get(sessionId);
-    if (!p) return;
-    for (const slot of p.slots) {
-      if (!slot.card) slot.card = this.toCardState(this.drawCard());
+    const sets = this.draft.get(sessionId);
+    const slotIdx = this.cursor.get(sessionId);
+    if (!p || !sets || slotIdx === undefined) return;
+
+    const set = sets[slotIdx];
+    if (set.resolved) return;
+
+    set.resolved = true;
+    set.revealed = null;
+
+    const card = set.cards[box];
+    p.slots[slotIdx].card = this.toCardState(card);
+    this.log('resolve_slot', {
+      userId: p.userId, slot: slotIdx, box, cardId: card.id, forced,
+    });
+
+    const next = sets.findIndex(s => !s.resolved);
+    if (next === -1) {
+      p.ready = true;
+      p.currentSlot = sets.length;
+      this.log('ready', { userId: p.userId });
+      this.checkAllReady();
+      return;
     }
-    p.ready = true;
-    this.log('autofill', { userId: p.userId });
+
+    this.cursor.set(sessionId, next);
+    p.currentSlot = next;
+
+    // A fresh slot gets a fresh minute — but only if the opponent is not
+    // mid-slot on a clock of their own; the shared timer already tracks the
+    // slowest player, so we only extend, never shorten.
+    if (this.state.timeLeft < SECONDS_PER_SLOT) {
+      this.state.timeLeft = SECONDS_PER_SLOT;
+    }
+  }
+
+  /** Timer expired on the current slot: take whatever is revealed, or force-open. */
+  private forceCurrentSlot(sessionId: string) {
+    const sets = this.draft.get(sessionId);
+    const slotIdx = this.cursor.get(sessionId);
+    if (!sets || slotIdx === undefined || slotIdx >= sets.length) return;
+
+    const set = sets[slotIdx];
+    if (set.resolved) return;
+
+    if (set.revealed !== null) {
+      this.resolveSlot(sessionId, set.revealed, true);
+      return;
+    }
+
+    // Nothing revealed — open the first unopened box and take it.
+    const b = set.opened.findIndex(o => !o);
+    if (b === -1) return;
+    set.opened[b] = true;
+    const p = this.state.players.get(sessionId);
+    if (p) p.slots[slotIdx].boxesOpened[b] = true;
+    this.resolveSlot(sessionId, b, true);
+  }
+
+  /** Disconnect / forfeit: resolve every remaining slot immediately. */
+  private autoCompleteAll(sessionId: string) {
+    const sets = this.draft.get(sessionId);
+    if (!sets) return;
+    let guard = 0;
+    while (sets.some(s => !s.resolved) && guard++ < 200) {
+      this.forceCurrentSlot(sessionId);
+    }
+    const p = this.state.players.get(sessionId);
+    if (p) {
+      p.ready = true;
+      this.log('autocomplete', { userId: p.userId });
+    }
   }
 
   private checkAllReady() {
@@ -248,7 +361,8 @@ export class MatchRoom extends Room<{ state: MatchState }> {
 
     const list = [...this.state.players.entries()];
     for (const [, p] of list) {
-      p.total = p.slots.reduce((acc: number, sl: SlotState) => acc + (sl.card?.rating ?? 0), 0);
+      p.total = p.slots.reduce(
+        (acc: number, sl: SlotState) => acc + (sl.card?.rating ?? 0), 0);
     }
 
     const [[, a], [, b]] = list;
@@ -259,11 +373,11 @@ export class MatchRoom extends Room<{ state: MatchState }> {
     else if (b.total > a.total) { b.score = goals; a.score = 0; this.state.winnerId = b.userId; }
     else                        { a.score = 0; b.score = 0; this.state.winnerId = ''; }
 
-    // MVP = highest single rating on the winning side (or overall on a draw)
     const mvpPool = this.state.winnerId
       ? list.find(([, p]) => p.userId === this.state.winnerId)![1].slots
       : [...a.slots, ...b.slots];
-    const mvp = [...mvpPool].sort((x: SlotState, y: SlotState) => (y.card?.rating ?? 0) - (x.card?.rating ?? 0))[0];
+    const mvp = [...mvpPool].sort(
+      (x: SlotState, y: SlotState) => (y.card?.rating ?? 0) - (x.card?.rating ?? 0))[0];
     this.state.mvpCardId = mvp?.card?.teacherCardId ?? 0;
 
     this.state.phase = 'finished';
@@ -284,7 +398,6 @@ export class MatchRoom extends Room<{ state: MatchState }> {
       ended_at: new Date().toISOString(),
     }).eq('id', this.matchId);
 
-    // Rewards are applied server-side via RPC so the client never touches coins.
     for (const p of [a, b]) {
       const won = p.userId === this.state.winnerId;
       const drew = !this.state.winnerId;
