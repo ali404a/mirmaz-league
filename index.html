@@ -92,39 +92,78 @@ nav{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
   padding:6px 14px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:700;transition:.2s;font-family:var(--f-ar)}
 .fchip.on{background:var(--cyan);color:#04132b;border-color:var(--cyan)}
 
+/* ── LOBBY ── */
+.fmt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
+.fmt-card{background:linear-gradient(165deg,#12224d,#0a1533);border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;padding:18px 14px;cursor:pointer;transition:.28s;position:relative;text-align:center}
+.fmt-card:hover{transform:translateY(-6px);border-color:rgba(34,229,255,.5)}
+.fmt-card.on{border-color:var(--cyan);background:linear-gradient(165deg,#16336e,#0b1b3f);
+  box-shadow:0 14px 38px -12px var(--royal-lt), inset 0 0 0 1px rgba(34,229,255,.3)}
+.fmt-card.on::after{content:'✓';position:absolute;top:12px;left:12px;width:22px;height:22px;
+  background:var(--cyan);color:#04132b;border-radius:50%;font-size:13px;font-weight:900;
+  display:flex;align-items:center;justify-content:center}
+.fmt-tag{position:absolute;top:12px;right:12px;font-size:9px;font-weight:900;letter-spacing:.5px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+  padding:3px 8px;border-radius:99px;opacity:.8}
+.fmt-pitch{background:
+    repeating-linear-gradient(0deg,#0e3520 0 10px,#0b2a19 10px 20px),var(--grass);
+  border:1px solid rgba(255,255,255,.18);border-radius:7px;
+  padding:8px 6px;margin:28px auto 12px;width:88px;
+  display:flex;flex-direction:column;gap:5px;justify-content:center}
+.mp-row{display:flex;justify-content:center;gap:4px}
+.mp-row i{width:8px;height:8px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 6px var(--cyan);flex:none}
+.fmt-card h3{font-size:16px;margin-bottom:8px}
+.fmt-meta{display:flex;justify-content:center;gap:10px;font-size:10px;opacity:.65;flex-wrap:wrap}
+.fmt-meta b{font-family:var(--f-disp);font-size:13px;color:var(--white);opacity:1}
+.btn.big{padding:15px 44px;font-size:16px}
+
 /* ── MATCH ── */
 .sel{background:#0d1e47;border:1px solid rgba(34,229,255,.35);color:#F2F6FF;padding:12px 16px;
   border-radius:11px;font-family:var(--f-ar);font-weight:700;font-size:14px;cursor:pointer}
 .slot.active{border-color:var(--gold);box-shadow:0 0 24px -4px var(--gold);animation:slotPulse 1.6s ease-in-out infinite}
 @keyframes slotPulse{50%{box-shadow:0 0 34px 2px var(--gold)}}
-.slot-label{text-align:center;font-family:var(--f-disp);font-size:15px;letter-spacing:1px;color:rgba(255,255,255,.75)}
-.slot-label small{display:block;font-family:var(--f-ar);font-size:10px;opacity:.6;margin-top:4px;letter-spacing:0}
-.box-head{text-align:center;font-size:13px;opacity:.8;margin-bottom:12px;width:100%}
-.box-head b{color:var(--gold);font-size:16px}
-.box-head span{display:block;font-size:11px;opacity:.5;margin-top:2px}
+.slot-label{text-align:center}
+.pos-badge{display:inline-block;font-family:var(--f-disp);font-size:13px;font-weight:700;letter-spacing:1px;
+  color:rgba(255,255,255,.85);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  padding:4px 10px;border-radius:7px}
+.slot-label small{display:block;font-family:var(--f-ar);font-size:10px;opacity:.55;margin-top:6px;min-height:12px}
+.box-head{display:flex;flex-direction:column;align-items:center;gap:3px;margin-bottom:14px;width:100%}
+.bh-pos{font-family:var(--f-disp);font-size:19px;letter-spacing:2px;color:var(--gold)}
+.bh-prog{font-family:var(--f-disp);font-size:12px;opacity:.5;letter-spacing:1px}
+.bh-left{font-size:11px;opacity:.6}
 .box-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;width:100%}
-.box.forced{border-color:var(--gold);color:var(--gold);background:linear-gradient(150deg,#5c4410,#2b1f06)}
-.box.forced:hover:not(.used){box-shadow:0 14px 32px -8px var(--gold)}
+.box.forced{border-color:var(--gold);color:var(--gold);
+  background:linear-gradient(150deg,#5c4410,#2b1f06);
+  box-shadow:0 8px 24px -8px var(--gold);animation:forcedIn .45s cubic-bezier(.2,.9,.3,1.5)}
+.box.forced:hover:not(.used){box-shadow:0 14px 32px -6px var(--gold);transform:translateY(-6px) scale(1.06)}
+@keyframes forcedIn{from{transform:scale(.85);opacity:.4}}
 .box .lock{position:absolute;top:-9px;background:var(--gold);color:#1a1200;font-size:8px;
-  font-style:normal;font-weight:900;padding:2px 7px;border-radius:99px;letter-spacing:.5px}
+  font-style:normal;font-weight:900;padding:3px 8px;border-radius:99px;letter-spacing:.5px;
+  box-shadow:0 3px 10px -2px var(--gold);white-space:nowrap}
 .decide{display:flex;flex-direction:column;gap:10px;max-width:190px}
 .decide small{opacity:.5;font-size:11px;line-height:1.5}
 .forced-note{background:rgba(255,201,77,.14);border:1px solid var(--gold);color:var(--gold);
   padding:9px 12px;border-radius:9px;font-size:12px;font-weight:700;text-align:center}
 .pitch{
   background:
-    repeating-linear-gradient(90deg,#0e3520 0 44px,#0b2a19 44px 88px),
+    repeating-linear-gradient(0deg,#0e3520 0 42px,#0b2a19 42px 84px),
     var(--grass);
-  border:2px solid rgba(255,255,255,.16); border-radius:16px; padding:20px;
-  position:relative; overflow:hidden; min-height:300px;
+  border:2px solid rgba(255,255,255,.2); border-radius:14px;
+  padding:26px 16px; position:relative; overflow:hidden;
 }
-.pitch::before{content:'';position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.18)}
-.pitch::after{content:'';position:absolute;top:50%;left:50%;width:90px;height:90px;transform:translate(-50%,-50%);
-  border:2px solid rgba(255,255,255,.18);border-radius:50%}
-.slots{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;position:relative;z-index:2}
-.slot{width:104px;height:150px;border:2px dashed rgba(255,255,255,.25);border-radius:10px;
-  display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,.5);
-  background:rgba(0,0,0,.2);transition:.25s}
+/* halfway line + centre circle */
+.pitch::before{content:'';position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.2)}
+.pitch::after{content:'';position:absolute;top:50%;left:50%;width:110px;height:110px;
+  transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.2);border-radius:50%}
+/* penalty areas */
+.pitch .pen{position:absolute;left:50%;transform:translateX(-50%);width:52%;height:60px;
+  border:2px solid rgba(255,255,255,.18);pointer-events:none}
+.pitch .pen.top{top:-2px;border-top:none;border-radius:0 0 6px 6px}
+.pitch .pen.bot{bottom:-2px;border-bottom:none;border-radius:6px 6px 0 0}
+.pitch-row{display:flex;justify-content:center;gap:14px;position:relative;z-index:2;margin-bottom:14px;flex-wrap:wrap}
+.pitch-row:last-child{margin-bottom:0}
+.slots{position:relative;z-index:2}
 .slot.filled{border-style:solid;border-color:var(--cyan);box-shadow:0 0 18px -4px var(--cyan)}
 .slot .card{width:100px;height:146px;pointer-events:none}
 .slot .card .c-rat{font-size:20px}.slot .card .c-name{font-size:9px;bottom:34px}
@@ -142,8 +181,8 @@ nav{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
 .box svg{width:46px;height:46px;opacity:.9}
 .box b{position:absolute;bottom:6px;font-family:var(--f-disp);font-size:12px;letter-spacing:1px}
 
-.timer{font-family:var(--f-disp);font-size:52px;text-align:center;letter-spacing:3px;
-  text-shadow:0 0 24px var(--cyan);line-height:1}
+.timer{font-family:var(--f-disp);font-size:40px;text-align:center;letter-spacing:2px;
+  text-shadow:0 0 20px var(--cyan);line-height:1}
 .timer.danger{color:#FF5470;text-shadow:0 0 24px #FF5470;animation:beat .5s infinite}
 @keyframes beat{50%{transform:scale(1.09)}}
 
@@ -156,11 +195,13 @@ nav{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
 .btn.danger{background:linear-gradient(135deg,#8B1E3F,#C02A52);box-shadow:0 8px 26px -8px #C02A52}
 .btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
 
-.scoreboard{display:flex;align-items:center;justify-content:center;gap:26px;margin:20px 0;
-  background:rgba(0,0,0,.4);border:1px solid rgba(34,229,255,.25);border-radius:14px;padding:16px}
-.sb-team{text-align:center;min-width:110px}
+.scoreboard{display:flex;align-items:center;justify-content:space-around;gap:16px;margin:0 0 16px;
+  background:rgba(0,0,0,.45);border:1px solid rgba(34,229,255,.25);border-radius:14px;padding:14px 18px}
+.sb-mid{text-align:center}
+.sb-mid small{display:block;font-size:9px;opacity:.45;margin-top:2px}
+.sb-team{text-align:center;min-width:90px}
 .sb-team b{display:block;font-size:13px;opacity:.7;margin-bottom:4px}
-.sb-team i{font-family:var(--f-disp);font-size:40px;font-style:normal;text-shadow:0 0 18px var(--cyan)}
+.sb-team i{font-family:var(--f-disp);font-size:32px;font-style:normal;text-shadow:0 0 18px var(--cyan)}
 .sb-vs{font-family:var(--f-disp);font-size:20px;opacity:.5}
 
 .msg{text-align:center;padding:14px;font-weight:700;font-size:15px;min-height:24px}
@@ -197,7 +238,13 @@ tr:hover td{background:rgba(34,229,255,.05)}
 @media(max-width:640px){
   .card{width:132px;height:196px}.c-rat{font-size:23px}.c-photo{height:88px;top:36px}.c-photo svg{height:88px}
   .c-name{font-size:11px;bottom:44px}.timer{font-size:38px}
-  .slot{width:84px;height:124px}.slot .card{width:80px;height:120px}
+  .slot{width:78px;height:116px}.slot .card{width:74px;height:112px}
+  .pitch-row{gap:8px;margin-bottom:10px}
+  .pitch{padding:18px 8px}
+  .box{width:74px;height:88px}.box svg{width:34px;height:34px}
+  .fmt-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .timer{font-size:30px}
+  .sb-team i{font-size:24px}
 }
 </style>
 
@@ -230,26 +277,36 @@ tr:hover td{background:rgba(34,229,255,.05)}
 
 <!-- PLAY -->
 <div class="view on" id="v-play">
-  <div class="scoreboard">
-    <div class="sb-team"><b>أنت</b><i id="myTot">0</i></div>
-    <div class="sb-vs">VS</div>
-    <div class="sb-team"><b id="oppName">الخصم</b><i id="opTot">0</i></div>
-  </div>
-  <div class="timer" id="timer">60</div>
-  <div class="msg" id="msg">اضغط "ابدأ المباراة" لبدء التشكيل</div>
-
-  <div class="pitch">
-    <div class="slots" id="slots"></div>
+  <!-- STEP 1: choose the pitch -->
+  <div id="lobby">
+    <h2>CHOOSE YOUR <span>PITCH</span></h2>
+    <p class="hint">كل مركز له 4 صناديق خاصة به. افتحها بأي ترتيب — آخر صندوق يتبقى يصبح إجبارياً.</p>
+    <div class="fmt-grid" id="fmtGrid"></div>
+    <div style="text-align:center;margin-top:24px">
+      <button class="btn big" id="start">▶ ابدأ المباراة</button>
+    </div>
   </div>
 
-  <div class="boxes" id="boxes"></div>
-  <div class="reveal" id="reveal"></div>
-  <div style="text-align:center;margin-top:18px;display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap">
-    <select id="fmt" class="sel">
-      <option value="3">ملعب 3 مراكز · 12 صندوق</option>
-      <option value="5">ملعب 5 مراكز · 20 صندوق</option>
-    </select>
-    <button class="btn" id="start">▶ ابدأ المباراة</button>
+  <!-- STEP 2: the match -->
+  <div id="arena" style="display:none">
+    <div class="scoreboard">
+      <div class="sb-team"><b>أنت</b><i id="myTot">0</i></div>
+      <div class="sb-mid">
+        <div class="timer" id="timer">60</div>
+        <small>ثانية لهذا المركز</small>
+      </div>
+      <div class="sb-team"><b id="oppName">الخصم</b><i id="opTot">?</i></div>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div class="pitch">
+      <div class="pen top"></div><div class="pen bot"></div>
+      <div class="slots" id="slots"></div>
+    </div>
+    <div class="boxes" id="boxes"></div>
+    <div class="reveal" id="reveal"></div>
+    <div style="text-align:center;margin-top:18px">
+      <button class="btn ghost" id="quit">↩ الملاعب</button>
+    </div>
   </div>
 </div>
 
@@ -451,17 +508,62 @@ $('lb').innerHTML=lbRows.map((r,i)=>`<tr>
   <td style="font-family:var(--f-disp);font-size:16px;color:#22E5FF">${r.pw}</td>
   <td>${r.wr}%</td></tr>`).join('');
 
+/* ══════════ LOBBY ══════════ */
+const FORMATS = [
+  {n:3,  name:'ثلاثي',  desc:'حارس · مدافع · مهاجم',        tag:'سريع'},
+  {n:5,  name:'خماسي',  desc:'خط دفاع ووسط وهجوم',          tag:'متوازن'},
+  {n:7,  name:'سباعي',  desc:'تشكيلة موسّعة',                tag:'طويل'},
+  {n:11, name:'كامل',   desc:'ملعب كرة قدم كامل',            tag:'ماراثون'},
+];
+let SLOTS = 3;
+
+function renderLobby(){
+  $('fmtGrid').innerHTML = FORMATS.map(f=>{
+    const boxes = f.n*4;
+    const mins = Math.round(f.n*60/60);
+    return `<div class="fmt-card ${f.n===SLOTS?'on':''}" data-n="${f.n}">
+      <div class="fmt-tag">${f.tag}</div>
+      <div class="fmt-pitch">${miniPitch(f.n)}</div>
+      <h3>${f.name}</h3>
+      <div class="fmt-meta">
+        <span><b>${f.n}</b> مراكز</span>
+        <span><b>${boxes}</b> صندوق</span>
+        <span>~<b>${mins}</b> دقيقة</span>
+      </div>
+    </div>`;
+  }).join('');
+  $('fmtGrid').querySelectorAll('.fmt-card').forEach(c=>c.onclick=()=>{
+    SLOTS = +c.dataset.n; renderLobby();
+  });
+}
+
+/* Miniature of the real formation shape, drawn from the same LAYOUTS
+   the pitch uses — so the preview cannot drift from the actual match. */
+function miniPitch(n){
+  return LAYOUTS[n].map(row=>
+    `<div class="mp-row">${row.map(()=>'<i></i>').join('')}</div>`
+  ).join('');
+}
+
 /* ══════════ MATCH ENGINE ══════════ */
 /* Each SLOT has its own 4 boxes. 3-slot pitch = 12 boxes.
    Box 4 of every slot is FORCED — no reject button.
    Each slot carries its own 60s timer. */
 const BOXES_PER_SLOT = 4;
-const FORCED_BOX = 3;
-let SLOTS = 3;
 let M = null;
 
+/* Rows run from goalkeeper (back) to striker (front) — a real pitch shape,
+   not a flat row. Each entry is one horizontal line of the formation. */
+const LAYOUTS = {
+  3:  [['GK'], ['CB'], ['ST']],
+  5:  [['GK'], ['CB'], ['CM'], ['LW','ST']],
+  7:  [['GK'], ['LB','CB'], ['CM','CAM'], ['RW','ST']],
+  11: [['GK'], ['LB','CB','CB','RB'], ['CDM','CM','CAM'], ['LW','ST','RW']],
+};
+const flat = n => LAYOUTS[n].flat();
+
 function newMatch(nSlots){
-  const positions = {3:['GK','CB','ST'],5:['GK','CB','CM','LW','ST']}[nSlots] || ['GK','CB','ST'];
+  const positions = flat(nSlots);
   return {
     positions,
     slots: positions.map(()=>({
@@ -477,13 +579,23 @@ function newMatch(nSlots){
 }
 
 function renderPitch(){
-  $('slots').innerHTML = M.slots.map((s,i)=>{
-    const active = i===M.cursor && !M.done;
-    return `<div class="slot ${s.taken?'filled':''} ${active?'active':''}">
-      ${s.taken ? cardHTML(s.taken)
-                : `<div class="slot-label">${M.positions[i]}<small>${
-                    active?'الدور الآن':'بانتظار'}</small></div>`}
-    </div>`;
+  const rows = LAYOUTS[SLOTS];
+  let idx = 0;
+  $('slots').innerHTML = rows.map(row=>{
+    const cells = row.map(pos=>{
+      const i = idx++;
+      const s = M.slots[i];
+      const active = i===M.cursor && !M.done;
+      const done = s.resolved;
+      return `<div class="slot ${done?'filled':''} ${active?'active':''}">
+        ${s.taken ? cardHTML(s.taken)
+                  : `<div class="slot-label">
+                       <span class="pos-badge">${pos}</span>
+                       <small>${active?'الدور الآن':done?'':'بانتظار'}</small>
+                     </div>`}
+      </div>`;
+    }).join('');
+    return `<div class="pitch-row">${cells}</div>`;
   }).join('');
   $('myTot').textContent = M.slots.reduce((a,s)=>a+(s.taken?s.taken.rating:0),0);
 }
@@ -492,14 +604,23 @@ function renderBoxes(){
   if(M.done){ $('boxes').innerHTML=''; return; }
   const set = M.slots[M.cursor];
   if(!set){ $('boxes').innerHTML=''; return; }
+
+  const left = set.opened.filter(o=>!o).length;
+  /* The last unopened box is the forced one — mark it only once it is
+     actually the last, since the player chooses the order. */
+  const lastIdx = left===1 ? set.opened.findIndex(o=>!o) : -1;
+
   $('boxes').innerHTML = `
-    <div class="box-head">صناديق مركز <b>${M.positions[M.cursor]}</b>
-      <span>${M.cursor+1} من ${M.slots.length}</span></div>
+    <div class="box-head">
+      <span class="bh-pos">مركز ${M.positions[M.cursor]}</span>
+      <span class="bh-prog">${M.cursor+1} / ${M.slots.length}</span>
+      <span class="bh-left">${left} صندوق متبقٍ · افتح بأي ترتيب</span>
+    </div>
     <div class="box-row">` +
     set.cards.map((_,i)=>{
-      const isForced = i===FORCED_BOX;
+      const isForced = i===lastIdx;
       return `<div class="box ${set.opened[i]?'used':''} ${isForced?'forced':''}"
-        data-i="${i}" title="${isForced?'إجباري — لا يمكن رفضه':''}">
+        data-i="${i}">
         <svg viewBox="0 0 64 64"><path d="M32 8l22 11v26L32 56 10 45V19z" fill="none" stroke="currentColor" stroke-width="2.5"/>
         <path d="M32 8v48M10 19l22 11 22-11" stroke="currentColor" stroke-width="2" fill="none" opacity=".7"/></svg>
         <b>${i+1}</b>${isForced?'<i class="lock">إجباري</i>':''}
@@ -519,7 +640,9 @@ function openBox(i){
   set.revealed = i;
   renderBoxes();
 
-  const forced = i===FORCED_BOX || set.opened.every(o=>o);
+  /* Forced = nothing left unopened. Whichever box you leave for last is
+     the one you must take — box 4 is not special. */
+  const forced = set.opened.every(o=>o);
   const c = set.cards[i];
 
   $('reveal').innerHTML = `${cardHTML(c)}
@@ -542,13 +665,13 @@ function rejectBox(i){
   set.revealed = null;
   $('reveal').innerHTML = '';
   const left = set.opened.filter(o=>!o).length;
+  renderBoxes();
   if(left === 1){
     const last = set.opened.findIndex(o=>!o);
-    $('msg').textContent = 'بقي صندوق واحد — يُفتح إجبارياً';
-    setTimeout(()=>openBox(last), 400);
+    $('msg').textContent = `بقي الصندوق ${last+1} فقط — إجباري`;
+    setTimeout(()=>openBox(last), 500);
   } else {
-    $('msg').textContent = `رُفضت · ${left} صندوق متبقٍ لمركز ${M.positions[M.cursor]}`;
-    renderBoxes();
+    $('msg').textContent = `رُفضت · ${left} صناديق متبقية`;
   }
 }
 
@@ -566,7 +689,7 @@ function resolveSlot(box){
   M.t = 60;
   $('timer').textContent = 60;
   $('timer').classList.remove('danger');
-  $('msg').textContent = `مركز ${M.positions[next]} — 4 صناديق جديدة`;
+  $('msg').textContent = `مركز ${M.positions[next]} — 4 صناديق جديدة · افتح بأي ترتيب`;
   renderPitch(); renderBoxes();
 }
 
@@ -600,20 +723,20 @@ function finish(){
     <div style="opacity:.6;font-size:13px;margin-bottom:10px">تشكيلة الخصم</div>
     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
     ${M.opp.map(c=>cardHTML(c)).join('')}</div></div>`;
-  $('start').disabled = false;
-  $('start').textContent = '▶ مباراة جديدة';
+  $('quit').textContent = '↩ اختر ملعباً آخر';
+  $('quit').classList.remove('ghost');
   renderPitch();
 }
 
 $('start').onclick = ()=>{
-  SLOTS = +($('fmt')?.value || 3);
+  $('lobby').style.display = 'none';
+  $('arena').style.display = 'block';
   M = newMatch(SLOTS);
   M.opp = M.positions.map(()=>makeCard(between(1,100),rollTier()));
   $('oppName').textContent = pick(FIRST)+' '+pick(LAST);
   $('opTot').textContent = '?';
-  $('start').disabled = true;
   const total = M.slots.length*BOXES_PER_SLOT;
-  $('msg').textContent = `${M.slots.length} مراكز × 4 صناديق = ${total} صندوقاً · ابدأ بمركز ${M.positions[0]}`;
+  $('msg').textContent = `${M.slots.length} مراكز × 4 = ${total} صندوقاً · ابدأ بمركز ${M.positions[0]}`;
   M.t = 60; $('timer').textContent = 60; $('timer').classList.remove('danger');
   renderPitch(); renderBoxes(); $('reveal').innerHTML='';
   clearInterval(M.timer);
@@ -628,5 +751,15 @@ $('start').onclick = ()=>{
   },1000);
 };
 
+$('quit').onclick = ()=>{
+  if(M && M.timer) clearInterval(M.timer);
+  $('arena').style.display = 'none';
+  $('lobby').style.display = 'block';
+  $('quit').textContent = '↩ الملاعب';
+  $('quit').classList.add('ghost');
+  renderLobby();
+};
+
+renderLobby();
 sync();
 </script>

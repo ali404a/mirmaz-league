@@ -10,7 +10,6 @@
  */
 
 const BOXES_PER_SLOT = 4;
-const FORCED_BOX = BOXES_PER_SLOT - 1;
 
 let failures = 0;
 function check(name, cond, extra = '') {
@@ -38,7 +37,8 @@ function openBox(sets, cursor, box) {
 
   set.opened[box] = true;
   set.revealed = box;
-  const forced = box === FORCED_BOX || set.opened.every(o => o);
+  // Forced = nothing left unopened. Not tied to any fixed index.
+  const forced = set.opened.every(o => o);
   return { ok: true, forced, card: set.cards[box] };
 }
 
@@ -47,7 +47,7 @@ function decide(sets, cursor, keep) {
   if (!set || set.resolved || set.revealed === null)
     return { ok: false, reason: 'nothing_revealed' };
   const b = set.revealed;
-  if (b === FORCED_BOX) return { ok: false, reason: 'forced_box_no_reject' };
+  if (set.opened.every(o => o)) return { ok: false, reason: 'forced_box_no_reject' };
 
   if (keep) { set.resolved = true; set.revealed = null; return { ok: true, took: b }; }
   set.revealed = null;
@@ -71,16 +71,64 @@ for (const [slots, expected] of [[3, 12], [5, 20], [7, 28], [11, 44]]) {
   check(`${slots}-slot pitch deals ${expected} boxes`, total === expected, `got ${total}`);
 }
 
-console.log('\n═══ FORCED 4th BOX ═══');
+console.log('\n═══ FORCED BOX IS WHICHEVER IS LAST ═══');
 {
+  // Sequential order: 1,2,3 rejected -> box 4 forced
   const d = makeDraft(1, card);
-  openBox(d, 0, 0); decide(d, 0, false);
-  openBox(d, 0, 1); decide(d, 0, false);
-  openBox(d, 0, 2); decide(d, 0, false);
+  for (const b of [0, 1, 2]) { openBox(d, 0, b); decide(d, 0, false); }
   const r = openBox(d, 0, 3);
-  check('4th box reports forced', r.ok && r.forced === true);
-  const dec = decide(d, 0, false);
-  check('4th box cannot be rejected', !dec.ok && dec.reason === 'forced_box_no_reject');
+  check('open 1,2,3 → box 4 is forced', r.ok && r.forced === true);
+  check('and it cannot be rejected',
+    !decide(d, 0, false).ok);
+}
+{
+  // The user's example: open 2,3,4 -> box 1 forced
+  const d = makeDraft(1, card);
+  for (const b of [1, 2, 3]) { openBox(d, 0, b); decide(d, 0, false); }
+  const r = openBox(d, 0, 0);
+  check('open 2,3,4 → box 1 is forced', r.ok && r.forced === true);
+  check('and it cannot be rejected',
+    !decide(d, 0, false).ok);
+}
+{
+  // Scattered order: 3,1,4 -> box 2 forced
+  const d = makeDraft(1, card);
+  for (const b of [2, 0, 3]) { openBox(d, 0, b); decide(d, 0, false); }
+  const r = openBox(d, 0, 1);
+  check('open 3,1,4 → box 2 is forced', r.ok && r.forced === true);
+}
+{
+  // Boxes 1-3 must all be rejectable when opened first
+  for (const first of [0, 1, 2, 3]) {
+    const d = makeDraft(1, card);
+    const r = openBox(d, 0, first);
+    check(`box ${first + 1} opened first is NOT forced`, r.ok && r.forced === false);
+    check(`box ${first + 1} opened first can be rejected`,
+      decide(d, 0, false).ok);
+  }
+}
+{
+  // Exhaustive: every one of the 24 opening orders must forbid rejecting
+  // the 4th box opened, and allow rejecting the first three.
+  const perms = [];
+  const permute = (arr, cur = []) => {
+    if (!arr.length) { perms.push(cur); return; }
+    arr.forEach((x, i) => permute([...arr.slice(0, i), ...arr.slice(i + 1)], [...cur, x]));
+  };
+  permute([0, 1, 2, 3]);
+  let bad = 0;
+  for (const order of perms) {
+    const d = makeDraft(1, card);
+    for (let i = 0; i < 4; i++) {
+      const r = openBox(d, 0, order[i]);
+      const shouldBeForced = i === 3;
+      if (!r.ok || r.forced !== shouldBeForced) { bad++; break; }
+      const dec = decide(d, 0, false);
+      if (dec.ok === shouldBeForced) { bad++; break; }   // 4th must refuse reject
+      if (shouldBeForced) break;
+    }
+  }
+  check(`all ${perms.length} opening orders force exactly the last box`, bad === 0, `${bad} broken`);
 }
 
 console.log('\n═══ REJECT IS FINAL ═══');
@@ -103,12 +151,18 @@ console.log('\n═══ ONE DECISION AT A TIME ═══');
 
 console.log('\n═══ SLOT NEVER LEFT EMPTY ═══');
 {
-  // reject everything possible; the forced box must still fill the slot
+  // Reject everything, opening in RANDOM order each time. The last box
+  // standing must still fill the slot.
+  let R = 999;
+  const rnd = () => (R = (R * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const shuffle = a => { const x = [...a]; for (let i = x.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
+
   let filled = 0;
   for (let trial = 0; trial < 1000; trial++) {
     const d = makeDraft(3, card);
     for (let s = 0; s < 3; s++) {
-      for (let b = 0; b < BOXES_PER_SLOT; b++) {
+      for (const b of shuffle([0, 1, 2, 3])) {
         const r = openBox(d, s, b);
         if (!r.ok) continue;
         if (r.forced) { resolve(d, s, b); break; }
@@ -117,7 +171,7 @@ console.log('\n═══ SLOT NEVER LEFT EMPTY ═══');
     }
     if (d.every(x => x.resolved)) filled++;
   }
-  check('1000 all-reject drafts still fill every slot', filled === 1000, `${filled}/1000`);
+  check('1000 random-order all-reject drafts fill every slot', filled === 1000, `${filled}/1000`);
 }
 
 console.log('\n═══ INPUT VALIDATION ═══');

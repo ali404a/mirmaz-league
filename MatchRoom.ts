@@ -9,9 +9,14 @@ import { supabase, TeacherCard, loadCardPool } from './db.js';
  * Every SLOT gets its own set of 4 boxes — not 4 boxes for the whole squad.
  * A 3-slot pitch deals 12 boxes per player; an 11-slot pitch deals 44.
  *
- * Within a slot the player opens boxes one at a time and may reject boxes
- * 1-3. The 4th box is FORCED: there is no reject button, so a slot can
- * never be left empty and "reject is final" stays meaningful.
+ * Within a slot the player opens boxes in ANY order and may reject any of
+ * them — except the last one still unopened. That final box is FORCED: it
+ * has no reject button, so a slot can never be left empty and "reject is
+ * final" stays meaningful.
+ *
+ * "Forced" is a property of BEING LAST, not of a fixed index. Open 2, 3, 4
+ * and reject them and box 1 becomes forced. Open 1, 2, 3 and reject them
+ * and box 4 becomes forced. Nothing is special about box 4.
  *
  * Each slot carries its own 60s timer, refreshed when a slot resolves.
  *
@@ -21,7 +26,6 @@ import { supabase, TeacherCard, loadCardPool } from './db.js';
 
 const SECONDS_PER_SLOT = 60;
 const BOXES_PER_SLOT = 4;
-const FORCED_BOX = BOXES_PER_SLOT - 1;   // index 3 — cannot be rejected
 
 const FORMATIONS: Record<number, string[]> = {
   3:  ['GK', 'CB', 'ST'],
@@ -214,9 +218,9 @@ export class MatchRoom extends Room<{ state: MatchState }> {
     set.revealed = b;
     p.slots[slotIdx].boxesOpened[b] = true;
 
-    // Forced when it is the designated last box, or when every box is now
-    // open (the player rejected their way down to this one).
-    const forced = b === FORCED_BOX || set.opened.every(o => o);
+    // Forced when nothing remains unopened behind it. Position-independent:
+    // whichever box the player leaves for last is the one they must take.
+    const forced = set.opened.every(o => o);
 
     // Contents go ONLY to the owner. The opponent sees which box index was
     // opened via boxesOpened, but never the card behind it.
@@ -249,9 +253,10 @@ export class MatchRoom extends Room<{ state: MatchState }> {
 
     const b = set.revealed;
 
-    // Guard: a forced box was already resolved on open. A decide() naming it
-    // is a stale client, or someone probing for a reject path.
-    if (b === FORCED_BOX) return;
+    // Guard: the last remaining box was already resolved on open, so a
+    // decide() naming it is a stale client or someone probing for a reject
+    // path that does not exist.
+    if (set.opened.every(o => o)) return;
 
     if (msg?.keep) {
       this.resolveSlot(client.sessionId, b, false);
@@ -264,6 +269,7 @@ export class MatchRoom extends Room<{ state: MatchState }> {
 
     // Rejecting down to a single remaining box leaves nothing to decide —
     // open it for them rather than making them click a foregone conclusion.
+    // Whichever index survived is the forced one.
     const remaining = set.opened.filter(o => !o).length;
     if (remaining === 1) {
       const last = set.opened.findIndex(o => !o);
