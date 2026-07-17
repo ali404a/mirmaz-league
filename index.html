@@ -59,13 +59,23 @@ body::before{
 .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:24px 16px 80px}
 
 /* ── HEADER ── */
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap}
-.logo{display:flex;align-items:center;gap:12px}
-.crest{width:52px;height:56px;filter:drop-shadow(0 0 14px rgba(34,229,255,.55))}
-.logo h1{font-family:var(--f-disp);font-size:30px;letter-spacing:2px;line-height:1;direction:ltr}
+header{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:14px; margin-bottom:26px; flex-wrap:nowrap;
+  position:relative; z-index:2;
+}
+/* direction:ltr because the crest belongs to the LEFT of a latin wordmark
+   regardless of the page being RTL. Without it the flex order flips and the
+   crest lands on top of the title. min-width:0 lets the block shrink instead
+   of forcing a wrap. */
+.logo{display:flex;align-items:center;gap:12px;direction:ltr;flex:0 1 auto;min-width:0}
+/* the glow was still the OLD cyan (#22E5FF) after the palette change */
+.crest{width:46px;height:50px;flex:none;filter:drop-shadow(0 0 14px rgba(13,234,211,.6))}
+.logo h1{font-family:var(--f-disp);font-size:26px;letter-spacing:2px;line-height:1;
+  direction:ltr;white-space:nowrap}
 .logo h1 span{color:var(--teal)}
 .logo small{font-size:11px;opacity:.55;letter-spacing:3px;direction:ltr;display:block}
-.coins{display:flex;gap:10px}
+.coins{display:flex;gap:8px;flex:0 0 auto;direction:ltr}
 .pill{background:rgba(255,255,255,.07);border:1px solid rgba(34,229,255,.3);border-radius:999px;
   backdrop-filter:blur(8px);
   padding:7px 14px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
@@ -191,7 +201,10 @@ nav{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
    crest, chips and tab, and turns off the hover tilt. Keeps glass + glow. */
 /* Sized from the pitch's --card so the two can never disagree:
    width = height / 1.45 (the slab's 3:4.35 ratio). */
-.slab.mini{--w:calc(var(--card,104px) * 0.69); --ribbon:13px; cursor:default}
+/* width = --card / (4.35/3) = --card * 0.6897, so the mini's HEIGHT lands
+   on --card exactly — which is what --rowgap was computed against. If this
+   drifts, rows overlap again. */
+.slab.mini{--w:calc(var(--card,104px) * 0.6897); --ribbon:13px; cursor:default}
 .slab.mini:hover{transform:none}
 .slab.mini::before{inset:-7px;filter:blur(9px);opacity:.4}
 .slab.mini .shell{padding:5px;border-radius:10px}
@@ -414,10 +427,14 @@ nav{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
    That is why --card is small: a full-size 157px slab needs 255px of
    in-plane spacing per row, which makes an 11-slot pitch absurdly tall.
    The reference runs cards at ~13% of pitch height; these run at ~15%. */
+/* The stage caps the pitch width so a 3-slot formation does not draw a vast
+   empty field. perspective-origin sits high, matching the reference's camera
+   looking down the pitch rather than at it side-on. */
 .stage{
-  perspective:1000px;
-  perspective-origin:50% 30%;
-  padding:10px 0 26px;
+  perspective:1050px;
+  perspective-origin:50% 26%;
+  padding:14px 0 30px;
+  max-width:660px; margin:0 auto;
 }
 .pitch{
   --rake:46deg;
@@ -490,22 +507,31 @@ nav{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
 /* Each row is a zero-height rail; the slots hang off it. Giving the row real
    height would re-introduce the foreshortening problem, so spacing lives in
    margin-bottom (--rowgap) and the cards float above the rail. */
+/* Each row is a real band of --rowgap height IN THE PLANE. That height is
+   what gives the pitch something to contain — an earlier version used
+   height:0 plus margins, and since transforms never affect layout the pitch
+   collapsed to a thin strip with the cards floating over it. */
 .pitch-row{
-  display:flex; justify-content:center; align-items:flex-end;
-  gap:12px; height:0; margin-bottom:var(--rowgap);
+  display:flex; justify-content:center; align-items:center;
+  gap:12px; height:var(--rowgap);
   transform-style:preserve-3d;
 }
-.pitch-row:last-child{margin-bottom:0}
 
+/* The slot fills its row's height in-plane, then counter-rotates about its
+   BASE so the card pivots upright from where it touches the turf. Because
+   the row is --rowgap tall and the card is --card tall on screen, rows can
+   never overlap: --rowgap x cos(rake) == --card exactly. */
 .slot{
-  width:calc(var(--card) * 0.72); height:var(--card); flex:none;
+  width:calc(var(--card) * 0.6897); height:100%; flex:none;
   display:flex; align-items:flex-end; justify-content:center;
-  /* stand up, then sit the base on the rail */
-  transform:rotateX(calc(var(--rake) * -1)) translateY(-100%);
+  transform:rotateX(calc(var(--rake) * -1));
   transform-origin:50% 100%;
   transform-style:preserve-3d;
   position:relative;
 }
+/* No height here: .slab is already sized by width:--w + aspect-ratio, and
+   adding height over-constrains the box. align-items:flex-end above parks
+   the card on the turf line, which is all the slot needs to do. */
 /* empty slot marker — only drawn when there is no card yet */
 .slot:not(.filled)::before{
   content:''; position:absolute; inset:0;
